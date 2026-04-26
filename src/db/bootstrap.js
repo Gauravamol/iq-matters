@@ -197,10 +197,12 @@ async function bootstrapDatabase(pool) {
       await connection.query("ALTER TABLE tournaments ADD COLUMN points_system_json LONGTEXT NULL AFTER require_admin_approval");
     }
 
-    const [settingsRows] = await connection.query("SELECT id FROM leaderboard_settings LIMIT 1");
+    if (await hasTable(connection, "leaderboard_settings")) {
+      const [settingsRows] = await connection.query("SELECT id FROM leaderboard_settings LIMIT 1");
 
-    if (settingsRows.length === 0) {
-      await connection.query("INSERT INTO leaderboard_settings (bg_image) VALUES (NULL)");
+      if (settingsRows.length === 0) {
+        await connection.query("INSERT INTO leaderboard_settings (bg_image) VALUES (NULL)");
+      }
     }
 
 
