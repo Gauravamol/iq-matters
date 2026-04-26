@@ -14,6 +14,20 @@ async function hasColumn(connection, tableName, columnName) {
   return rows.length > 0;
 }
 
+async function hasTable(connection, tableName) {
+  const [rows] = await connection.query(
+    `
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_schema = ? AND table_name = ?
+      LIMIT 1
+    `,
+    [env.db.database, tableName]
+  );
+
+  return rows.length > 0;
+}
+
 async function bootstrapDatabase(pool) {
   const connection = await pool.getConnection();
 
@@ -65,7 +79,7 @@ async function bootstrapDatabase(pool) {
       `
     );
 
-    if (!(await hasColumn(connection, "matches", "scheduled_at"))) {
+    if (await hasTable(connection, "matches") && !(await hasColumn(connection, "matches", "scheduled_at"))) {
       await connection.query("ALTER TABLE matches ADD COLUMN scheduled_at DATETIME NULL AFTER map_name");
     }
 
