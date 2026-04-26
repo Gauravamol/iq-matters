@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Medal, Trophy, Users } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import PageWrapper, { cardMotionProps } from "../components/PageWrapper";
 import HeroMediaBanner from "../components/HeroMediaBanner";
 import ActionButton from "../components/ActionButton";
@@ -17,6 +18,27 @@ const tournamentVideos = [
   }
 ];
 
+function formatTournamentDate(value) {
+  if (!value) {
+    return "Schedule dropping soon";
+  }
+
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.getTime()) ? "Schedule dropping soon" : parsedDate.toLocaleString();
+}
+
+function getTournamentActionLabel(tournament) {
+  if (tournament.is_joined) {
+    return "Approved";
+  }
+
+  if (!tournament.registration_open) {
+    return tournament.registration_reason || "Registration closed";
+  }
+
+  return "Open Registration Form";
+}
+
 function TournamentMetric({ icon: Icon, label, value }) {
   return (
     <div className="metric-pill">
@@ -27,7 +49,8 @@ function TournamentMetric({ icon: Icon, label, value }) {
 }
 
 function Tournaments() {
-  const { token, team, isAuthenticated, refreshSession } = useAuth();
+  const navigate = useNavigate();
+  const { token, isAuthenticated } = useAuth();
   const [tournaments, setTournaments] = useState([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -45,31 +68,16 @@ function Tournaments() {
     }
   }
 
-  async function joinTournament(id) {
+  function joinTournament(id) {
     setMessage("");
     setError("");
 
-    if (!isAuthenticated || !team) {
-      setError("Login and create a team before joining a tournament.");
+    if (!isAuthenticated) {
+      navigate("/login");
       return;
     }
 
-    try {
-      await apiRequest("/join-tournament", {
-        method: "POST",
-        token,
-        body: {
-          tournament_id: id,
-          team_id: team.id
-        }
-      });
-
-      await refreshSession();
-      await loadTournaments();
-      setMessage("Tournament joined successfully.");
-    } catch (requestError) {
-      setError(requestError.message);
-    }
+    navigate(`/tournaments/${id}/register`);
   }
 
   return (
@@ -105,6 +113,7 @@ function Tournaments() {
               <div>
                 <span className="eyebrow">{tournament.status}</span>
                 <h3>{tournament.name}</h3>
+                <p>{formatTournamentDate(tournament.date)}</p>
               </div>
               <Trophy className="card-icon" size={24} />
             </div>
@@ -113,15 +122,21 @@ function Tournaments() {
               <TournamentMetric icon={Trophy} label="Prize" value={`Rs. ${Number(tournament.prize_pool || 0).toLocaleString()}`} />
               <TournamentMetric icon={Users} label="Teams" value={`${tournament.joined_teams || 0}/${tournament.max_teams}`} />
               <TournamentMetric icon={Medal} label="Entry" value={`Rs. ${Number(tournament.entry_fee || 0).toLocaleString()}`} />
+              <TournamentMetric icon={Users} label="Spots" value={tournament.registration_open ? `${tournament.spots_left || 0} left` : (tournament.registration_reason || "Closed")} />
             </div>
 
-            <ActionButton
-              iconName="tournaments"
-              onClick={() => joinTournament(tournament.id)}
-              disabled={Boolean(tournament.is_joined)}
-            >
-              {tournament.is_joined ? "Joined" : "Join Tournament"}
-            </ActionButton>
+            <div className="button-row">
+              <ActionButton
+                iconName="tournaments"
+                onClick={() => joinTournament(tournament.id)}
+                disabled={Boolean(tournament.is_joined || !tournament.registration_open)}
+              >
+                {getTournamentActionLabel(tournament)}
+              </ActionButton>
+              <ActionButton to={`/tournaments/${tournament.id}/points-table`} iconName="stats" className="nav-button nav-button--ghost">
+                Points Table
+              </ActionButton>
+            </div>
           </motion.article>
         ))}
       </div>

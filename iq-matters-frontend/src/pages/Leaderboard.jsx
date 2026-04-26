@@ -20,40 +20,42 @@ function RankDisplay({ rank }) {
   return <span className="rank-pill">#{rank}</span>;
 }
 
+function normalizeNumber(value) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
 function Leaderboard() {
-  const { token, joinedTournamentIds } = useAuth();
+  const { token } = useAuth();
   const { isFeatureEnabled } = usePlatform();
   const [tournaments, setTournaments] = useState([]);
-  const [selectedTournamentId, setSelectedTournamentId] = useState("");
+  const [selectedScope, setSelectedScope] = useState("global");
   const [teams, setTeams] = useState([]);
   const [settings, setSettings] = useState({ bg_image: "" });
   const [error, setError] = useState("");
 
   useEffect(() => {
     apiRequest("/tournaments", { token })
-      .then((data) => {
-        setTournaments(data || []);
-        const preferredId = joinedTournamentIds[0] || data?.[0]?.id;
-        if (preferredId) {
-          setSelectedTournamentId(String(preferredId));
-        }
-      })
+      .then((data) => setTournaments(data || []))
       .catch((requestError) => setError(requestError.message));
 
     apiRequest("/leaderboard-settings")
       .then((data) => setSettings(data || { bg_image: "" }))
       .catch(() => setSettings({ bg_image: "" }));
-  }, [token, joinedTournamentIds]);
+  }, [token]);
 
   useEffect(() => {
-    if (!selectedTournamentId) {
-      return;
-    }
+    const endpoint = selectedScope === "global"
+      ? "/leaderboard"
+      : `/leaderboard/${selectedScope}`;
 
-    apiRequest(`/leaderboard/${selectedTournamentId}`, { token })
-      .then(setTeams)
+    apiRequest(endpoint, { token })
+      .then((data) => {
+        setTeams(data || []);
+        setError("");
+      })
       .catch((requestError) => setError(requestError.message));
-  }, [selectedTournamentId, token]);
+  }, [selectedScope, token]);
 
   const backgroundEnabled = isFeatureEnabled("leaderboard_background", true);
   const tableStyle = backgroundEnabled && settings?.bg_image
@@ -66,24 +68,23 @@ function Leaderboard() {
         page="leaderboard"
         eyebrow="Standings"
         title="Leaderboard"
-        description="Highlight top teams, compare kills and points, and run the leaderboard against optional branded backgrounds."
+        description="Switch between global and tournament standings to compare match volume, kills, and points by scope."
       />
 
       <motion.section className="page-card" {...cardMotionProps}>
         <div className="section-head">
           <div>
             <span className="eyebrow">Standings Control</span>
-            <h2>Tournament Rankings</h2>
+            <h2>Global & Tournament Rankings</h2>
           </div>
-          <p>Switch tournaments instantly and track rank progression with animated rows and highlighted top teams.</p>
+          <p>Select Global Leaderboard for all-time totals, or a tournament to view scoped standings.</p>
         </div>
-        {tournaments.length ? (
-          <select className="form-input" value={selectedTournamentId} onChange={(event) => setSelectedTournamentId(event.target.value)}>
-            {tournaments.map((tournament) => (
-              <option key={tournament.id} value={tournament.id}>{tournament.name}</option>
-            ))}
-          </select>
-        ) : null}
+        <select className="form-input" value={selectedScope} onChange={(event) => setSelectedScope(event.target.value)}>
+          <option value="global">Global Leaderboard</option>
+          {tournaments.map((tournament) => (
+            <option key={tournament.id} value={tournament.id}>{tournament.name}</option>
+          ))}
+        </select>
         {error ? <div className="form-message form-message--error">{error}</div> : null}
       </motion.section>
 
@@ -93,6 +94,7 @@ function Leaderboard() {
             <motion.tr initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, ease: "easeOut" }}>
               <th>Rank</th>
               <th>Team</th>
+              <th>Matches</th>
               <th>Kills</th>
               <th>Points</th>
             </motion.tr>
@@ -101,13 +103,17 @@ function Leaderboard() {
             {teams.map((team, index) => {
               const rank = index + 1;
               const rowClassName = rank <= 3 ? `leaderboard-row leaderboard-row--top-${rank}` : "leaderboard-row";
+              const matchesPlayed = normalizeNumber(team.matches_played);
+              const kills = normalizeNumber(team.kills ?? team.total_kills);
+              const points = normalizeNumber(team.points ?? team.total_points);
 
               return (
                 <motion.tr key={team.id || team.name} className={rowClassName} {...getRowMotion(index)}>
                   <td><RankDisplay rank={rank} /></td>
-                  <td><TeamIdentity name={team.name} /></td>
-                  <td>{team.kills}</td>
-                  <td>{team.points}</td>
+                  <td><TeamIdentity name={team.name} logoUrl={team.logo_url} /></td>
+                  <td>{matchesPlayed}</td>
+                  <td>{kills}</td>
+                  <td>{points}</td>
                 </motion.tr>
               );
             })}

@@ -31,7 +31,7 @@ async function hydrateSession(userId) {
   if (user.team_id) {
     const [teamRows] = await pool.query(
       `
-        SELECT id, name, leader_id, total_points, total_kills, matches_played
+        SELECT id, name, logo_url, leader_id, total_points, total_kills, matches_played
         FROM teams
         WHERE id = ?
         LIMIT 1
@@ -42,7 +42,12 @@ async function hydrateSession(userId) {
     team = teamRows[0] || null;
 
     const [registrationRows] = await pool.query(
-      "SELECT tournament_id FROM tournament_teams WHERE team_id = ? ORDER BY tournament_id ASC",
+      `
+        SELECT tournament_id
+        FROM tournament_teams
+        WHERE team_id = ? AND COALESCE(disqualified, 0) = 0
+        ORDER BY tournament_id ASC
+      `,
       [user.team_id]
     );
 

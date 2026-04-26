@@ -1,7 +1,12 @@
 const express = require("express");
 const { authenticate } = require("../middleware/auth");
 const { asyncHandler, HttpError } = require("../utils/http");
-const { createTeam, getTeamByUserId, getPlayersByTeamId } = require("../services/teamService");
+const {
+  createTeam,
+  getTeamByUserId,
+  getPlayersByTeamId,
+  getTeamProfile
+} = require("../services/teamService");
 
 const router = express.Router();
 
@@ -28,6 +33,11 @@ router.get("/team/:user_id", authenticate, asyncHandler(async (req, res) => {
 router.get("/players/:team_id", asyncHandler(async (req, res) => {
   const players = await getPlayersByTeamId(Number(req.params.team_id));
   res.json(players);
+}));
+
+router.get("/team-profile/:team_id", asyncHandler(async (req, res) => {
+  const profile = await getTeamProfile(Number(req.params.team_id));
+  res.json(profile);
 }));
 
 module.exports = router;

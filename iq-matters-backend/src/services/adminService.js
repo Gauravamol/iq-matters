@@ -5,19 +5,22 @@ const { HttpError } = require("../utils/http");
 async function getDashboardStats() {
   const [teamRows] = await pool.query("SELECT COUNT(*) AS total_teams FROM teams");
   const [tournamentRows] = await pool.query(
-    "SELECT COUNT(*) AS active_tournaments, COALESCE(SUM(prize_pool), 0) AS total_prize_pool FROM tournaments WHERE status <> 'completed'"
+    "SELECT COUNT(*) AS total_tournaments, COALESCE(SUM(prize_pool), 0) AS total_prize_pool FROM tournaments"
   );
-  const [matchRows] = await pool.query(
-    "SELECT COUNT(*) AS matches_today FROM matches WHERE scheduled_at IS NOT NULL AND DATE(scheduled_at) = CURDATE()"
-  );
+  const [matchRows] = await pool.query("SELECT COUNT(*) AS total_matches FROM matches");
   const [userRows] = await pool.query("SELECT COUNT(*) AS total_users FROM users");
+
+  const totalTournaments = Number(tournamentRows[0].total_tournaments || 0);
+  const totalMatches = Number(matchRows[0].total_matches || 0);
 
   return {
     total_teams: Number(teamRows[0].total_teams || 0),
-    active_tournaments: Number(tournamentRows[0].active_tournaments || 0),
-    matches_today: Number(matchRows[0].matches_today || 0),
+    total_tournaments: totalTournaments,
+    total_matches: totalMatches,
     total_prize_pool: Number(tournamentRows[0].total_prize_pool || 0),
-    total_users: Number(userRows[0].total_users || 0)
+    total_users: Number(userRows[0].total_users || 0),
+    active_tournaments: totalTournaments,
+    matches_today: totalMatches
   };
 }
 

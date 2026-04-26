@@ -27,7 +27,10 @@ function Navbar() {
 
   return (
     <header className="topbar">
-      <Link to="/" className="brand-mark">IQ Matters</Link>
+      <Link to="/" className="brand-mark" aria-label="IQ Matters home">
+        <img src="/logo.svg" alt="" className="brand-mark__logo" width="42" height="42" />
+        <span className="brand-mark__text">IQ Matters</span>
+      </Link>
 
       <nav className="topbar__links">
         <NavItem to="/" label="Home" iconName="dashboard" end />

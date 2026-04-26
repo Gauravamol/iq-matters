@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { CalendarDays, Gamepad2, MapPinned } from "lucide-react";
 import PageWrapper, { cardMotionProps } from "../components/PageWrapper";
@@ -20,6 +20,7 @@ function Matches() {
   const [tournaments, setTournaments] = useState([]);
   const [selectedTournamentId, setSelectedTournamentId] = useState("");
   const [matches, setMatches] = useState([]);
+  const [resultRows, setResultRows] = useState([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -39,12 +40,35 @@ function Matches() {
       return;
     }
 
-    apiRequest(`/matches/${selectedTournamentId}`, { token })
-      .then(setMatches)
+    Promise.all([
+      apiRequest(`/matches/${selectedTournamentId}`, { token }),
+      apiRequest(`/matches/${selectedTournamentId}/results`, { token })
+    ])
+      .then(([matchData, rows]) => {
+        setMatches(matchData || []);
+        setResultRows(rows || []);
+        setError("");
+      })
       .catch((requestError) => setError(requestError.message));
   }, [selectedTournamentId, token]);
 
   const selectedTournament = tournaments.find((tournament) => String(tournament.id) === selectedTournamentId);
+
+  const resultRowsByMatchId = useMemo(() => {
+    const grouped = new Map();
+
+    for (const row of resultRows) {
+      const key = Number(row.match_id);
+
+      if (!grouped.has(key)) {
+        grouped.set(key, []);
+      }
+
+      grouped.get(key).push(row);
+    }
+
+    return grouped;
+  }, [resultRows]);
 
   return (
     <PageWrapper className="stack-layout">
@@ -52,7 +76,7 @@ function Matches() {
         page="matches"
         eyebrow="Match Control"
         title="Matches"
-        description="View the active tournament lobby, monitor maps and status, and track the match board with smooth card transitions."
+        description="View match-wise standings with placement, kills, and points for each tournament lobby."
       />
 
       <motion.section className="page-card" {...cardMotionProps}>
@@ -74,26 +98,43 @@ function Matches() {
       </motion.section>
 
       <div className="stats-grid">
-        {matches.map((match, index) => (
-          <motion.article
-            key={match.id}
-            className="page-card match-card"
-            {...cardMotionProps}
-            transition={{ ...cardMotionProps.transition, delay: Math.min(index * 0.04, 0.2) }}
-          >
-            <div className="card-heading-row">
-              <div>
-                <span className="eyebrow">Match {match.match_number}</span>
-                <h3>{selectedTournament?.name || "Tournament Match"}</h3>
+        {matches.map((match, index) => {
+          const leaderboardRows = resultRowsByMatchId.get(Number(match.id)) || [];
+
+          return (
+            <motion.article
+              key={match.id}
+              className="page-card match-card"
+              {...cardMotionProps}
+              transition={{ ...cardMotionProps.transition, delay: Math.min(index * 0.04, 0.2) }}
+            >
+              <div className="card-heading-row">
+                <div>
+                  <span className="eyebrow">Match {match.match_number}</span>
+                  <h3>{selectedTournament?.name || "Tournament Match"}</h3>
+                </div>
+                <Gamepad2 className="card-icon" size={24} />
               </div>
-              <Gamepad2 className="card-icon" size={24} />
-            </div>
-            <div className="metric-row">
-              <MatchBadge icon={MapPinned} text={match.map_name || "Map TBA"} />
-              <MatchBadge icon={CalendarDays} text={match.status || "pending"} />
-            </div>
-          </motion.article>
-        ))}
+              <div className="metric-row">
+                <MatchBadge icon={MapPinned} text={match.map_name || "Map TBA"} />
+                <MatchBadge icon={CalendarDays} text={match.status || "pending"} />
+              </div>
+
+              {leaderboardRows.length ? (
+                <ol className="data-list">
+                  {leaderboardRows.map((row) => (
+                    <li key={row.id}>
+                      <span>{row.team_name} - Position {row.position} - {row.kills} kills</span>
+                      <strong>{row.points} pts</strong>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p>No results submitted for this match yet.</p>
+              )}
+            </motion.article>
+          );
+        })}
       </div>
     </PageWrapper>
   );

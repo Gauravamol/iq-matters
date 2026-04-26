@@ -2,8 +2,10 @@ import React, { useEffect, useState } from "react";
 import PageWrapper from "../components/PageWrapper";
 import HeroMediaBanner from "../components/HeroMediaBanner";
 import ActionButton from "../components/ActionButton";
+import ManagedFileField from "../components/ManagedFileField";
 import { useAuth } from "../hooks/useAuth";
 import { apiRequest } from "../lib/api";
+import { getFileBadgeLabel, isImageAssetUrl, isVideoAssetUrl, mediaImageAccept, mediaVideoAccept } from "../lib/fileTypes";
 
 const slotOptions = [
   { value: "home", label: "Home Hero", mediaType: "image" },
@@ -27,6 +29,7 @@ function AdminMedia() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const selectedSlot = slotOptions.find((slot) => slot.value === form.page_name) || slotOptions[0];
 
   useEffect(() => {
     loadAssets();
@@ -139,7 +142,29 @@ function AdminMedia() {
             <option value="image">Image</option>
             <option value="video">Video</option>
           </select>
-          <input className="form-input" placeholder="Paste image or video URL" value={form.url} onChange={(event) => setForm({ ...form, url: event.target.value })} />
+          <ManagedFileField
+            token={token}
+            value={form.url}
+            onChange={(nextUrl) => setForm({ ...form, url: nextUrl })}
+            kind="media"
+            accept={form.media_type === "video" ? mediaVideoAccept : mediaImageAccept}
+            placeholder="Paste image or video URL or upload a supported file"
+            uploadLabel={form.media_type === "video" ? "Upload Video" : "Upload Image"}
+            showPreview={false}
+          />
+          {form.url.trim() ? (
+            <div className="media-preview media-preview--editor">
+              {form.media_type === "video" && isVideoAssetUrl(form.url.trim()) ? (
+                <video src={form.url.trim()} controls preload="metadata" />
+              ) : form.media_type === "image" && isImageAssetUrl(form.url.trim()) ? (
+                <img src={form.url.trim()} alt={`${selectedSlot.label} draft preview`} loading="lazy" />
+              ) : (
+                <a className="managed-file-field__file" href={form.url.trim()} target="_blank" rel="noreferrer">
+                  {getFileBadgeLabel(form.url.trim())}
+                </a>
+              )}
+            </div>
+          ) : null}
           {message ? <div className="form-message form-message--success">{message}</div> : null}
           {error ? <div className="form-message form-message--error">{error}</div> : null}
           <ActionButton iconName="media" type="submit" disabled={saving || !form.url.trim()}>{saving ? "Saving..." : "Save Media Asset"}</ActionButton>
@@ -160,10 +185,14 @@ function AdminMedia() {
 
                 {asset ? (
                   <div className="media-preview">
-                    {asset.media_type === "video" ? (
+                    {asset.media_type === "video" && isVideoAssetUrl(asset.url) ? (
                       <video src={asset.url} controls preload="metadata" />
+                    ) : asset.media_type === "image" && isImageAssetUrl(asset.url) ? (
+                      <img src={asset.url} alt={`${slot.label} preview`} loading="lazy" />
                     ) : (
-                      <img src={asset.url} alt={`${slot.label} preview`} />
+                      <a className="managed-file-field__file" href={asset.url} target="_blank" rel="noreferrer">
+                        {getFileBadgeLabel(asset.url)}
+                      </a>
                     )}
                   </div>
                 ) : null}

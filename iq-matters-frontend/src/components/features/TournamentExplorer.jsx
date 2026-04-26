@@ -8,9 +8,30 @@ import Button from "../ui/Button";
 import Badge from "../ui/Badge";
 import Panel from "../ui/Panel";
 
+function formatTournamentDate(value) {
+  if (!value) {
+    return "Schedule dropping soon";
+  }
+
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.getTime()) ? "Schedule dropping soon" : parsedDate.toLocaleString();
+}
+
+function getTournamentActionLabel(tournament) {
+  if (tournament.is_joined) {
+    return "Approved";
+  }
+
+  if (!tournament.registration_open) {
+    return tournament.registration_reason || "Registration closed";
+  }
+
+  return "Register";
+}
+
 export default function TournamentExplorer({ compact = false }) {
   const navigate = useNavigate();
-  const { token, team, isAuthenticated, refreshSession } = useAuth();
+  const { token, isAuthenticated } = useAuth();
   const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -34,7 +55,7 @@ export default function TournamentExplorer({ compact = false }) {
     }
   }
 
-  async function handleJoin(tournamentId) {
+  function handleJoin(tournamentId) {
     setNotice("");
 
     if (!isAuthenticated) {
@@ -42,28 +63,7 @@ export default function TournamentExplorer({ compact = false }) {
       return;
     }
 
-    if (!team) {
-      setNotice("Create your team before joining a tournament.");
-      navigate("/dashboard/team");
-      return;
-    }
-
-    try {
-      await apiRequest("/join-tournament", {
-        method: "POST",
-        token,
-        body: {
-          tournament_id: tournamentId,
-          team_id: team.id
-        }
-      });
-
-      await refreshSession();
-      await loadTournaments();
-      setNotice("Tournament registration confirmed.");
-    } catch (requestError) {
-      setNotice(requestError.message);
-    }
+    navigate(`/tournaments/${tournamentId}/register`);
   }
 
   return (
@@ -97,7 +97,7 @@ export default function TournamentExplorer({ compact = false }) {
 
                 <div>
                   <h3>{tournament.name}</h3>
-                  <p>{tournament.date ? new Date(tournament.date).toLocaleString() : "Schedule dropping soon"}</p>
+                  <p>{formatTournamentDate(tournament.date)}</p>
                 </div>
 
                 <div className="tournament-card__meta">
@@ -109,14 +109,18 @@ export default function TournamentExplorer({ compact = false }) {
                     <span>Prize Pool</span>
                     <strong>Rs. {Number(tournament.prize_pool || 0).toLocaleString()}</strong>
                   </div>
+                  <div>
+                    <span>Spots</span>
+                    <strong>{tournament.registration_open ? `${tournament.spots_left || 0} left` : (tournament.registration_reason || "Closed")}</strong>
+                  </div>
                 </div>
 
                 <Button
                   variant={tournament.is_joined ? "ghost" : "primary"}
                   onClick={() => handleJoin(tournament.id)}
-                  disabled={Boolean(tournament.is_joined)}
+                  disabled={Boolean(tournament.is_joined || !tournament.registration_open)}
                 >
-                  {tournament.is_joined ? "Joined" : "Join Tournament"}
+                  {getTournamentActionLabel(tournament)}
                 </Button>
               </Panel>
             </motion.div>

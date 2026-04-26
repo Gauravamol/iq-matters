@@ -48,6 +48,7 @@ async function loadResult(connection, resultId) {
         results.position,
         results.kills,
         results.points,
+        results.report_notes,
         matches.tournament_id,
         matches.match_number,
         matches.map_name,
@@ -67,6 +68,119 @@ async function loadResult(connection, resultId) {
   return rows[0] || null;
 }
 
+async function loadPlayersByTeam(connection, teamId) {
+  const [rows] = await connection.query(
+    `
+      SELECT id, team_id, player_name, player_uid, logo_url
+      FROM players
+      WHERE team_id = ?
+      ORDER BY id ASC
+    `,
+    [Number(teamId)]
+  );
+
+  return rows;
+}
+
+async function loadResultPlayerStats(connection, resultId) {
+  const [rows] = await connection.query(
+    `
+      SELECT
+        player_match_stats.id,
+        player_match_stats.result_id,
+        player_match_stats.match_id,
+        player_match_stats.team_id,
+        player_match_stats.player_id,
+        player_match_stats.kills,
+        players.player_name,
+        players.player_uid,
+        players.logo_url
+      FROM player_match_stats
+      JOIN players ON players.id = player_match_stats.player_id
+      WHERE player_match_stats.result_id = ?
+      ORDER BY player_match_stats.kills DESC, players.player_name ASC
+    `,
+    [Number(resultId)]
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    kills: Number(row.kills || 0)
+  }));
+}
+
+function normalizePlayerStats(playerStats, teamPlayers, teamKills) {
+  if (!Array.isArray(playerStats) || !playerStats.length) {
+    return [];
+  }
+
+  const playersById = new Map(teamPlayers.map((player) => [Number(player.id), player]));
+  const seenPlayerIds = new Set();
+  const normalizedStats = [];
+  let aggregatedKills = 0;
+
+  for (const entry of playerStats) {
+    const playerId = Number(entry?.player_id);
+    const kills = toNonNegativeNumber(entry?.kills ?? 0, "Player kills");
+
+    if (!playerId || !playersById.has(playerId)) {
+      throw new HttpError(400, "Player stats must reference players from the selected team");
+    }
+
+    if (seenPlayerIds.has(playerId)) {
+      throw new HttpError(409, "Each player can only appear once in the result breakdown");
+    }
+
+    seenPlayerIds.add(playerId);
+    aggregatedKills += kills;
+    normalizedStats.push({
+      player_id: playerId,
+      kills
+    });
+  }
+
+  if (aggregatedKills !== Number(teamKills)) {
+    throw new HttpError(400, "Player kill breakdown must equal the team kills");
+  }
+
+  return normalizedStats;
+}
+
+async function replaceResultPlayerStats(connection, { resultId, matchId, teamId, playerStats }) {
+  await connection.query(
+    "DELETE FROM player_match_stats WHERE result_id = ?",
+    [Number(resultId)]
+  );
+
+  for (const playerStat of playerStats) {
+    await connection.query(
+      `
+        INSERT INTO player_match_stats (result_id, match_id, team_id, player_id, kills)
+        VALUES (?, ?, ?, ?, ?)
+      `,
+      [Number(resultId), Number(matchId), Number(teamId), Number(playerStat.player_id), Number(playerStat.kills)]
+    );
+  }
+}
+
+function attachPlayersToTeams(teams, playerRows) {
+  const playersByTeamId = playerRows.reduce((accumulator, player) => {
+    const teamId = Number(player.team_id);
+
+    if (!accumulator.has(teamId)) {
+      accumulator.set(teamId, []);
+    }
+
+    accumulator.get(teamId).push(player);
+    return accumulator;
+  }, new Map());
+
+  return teams.map((team) => ({
+    ...team,
+    players: playersByTeamId.get(Number(team.id)) || []
+  }));
+}
+
 async function validateTeamForMatch(connection, { match, teamId, resultIdToIgnore = null }) {
   const [teamRows] = await connection.query(
     "SELECT id FROM teams WHERE id = ? LIMIT 1",
@@ -78,7 +192,12 @@ async function validateTeamForMatch(connection, { match, teamId, resultIdToIgnor
   }
 
   const [registrationRows] = await connection.query(
-    "SELECT 1 FROM tournament_teams WHERE tournament_id = ? AND team_id = ? LIMIT 1",
+    `
+      SELECT 1
+      FROM tournament_teams
+      WHERE tournament_id = ? AND team_id = ? AND COALESCE(disqualified, 0) = 0
+      LIMIT 1
+    `,
     [match.tournament_id, teamId]
   );
 
@@ -177,6 +296,36 @@ async function getMatchesByTournament(tournamentId) {
   }));
 }
 
+async function getMatchResultsByTournament(tournamentId) {
+  const [rows] = await pool.query(
+    `
+      SELECT
+        results.id,
+        results.match_id,
+        results.team_id,
+        results.position,
+        results.kills,
+        results.points,
+        results.report_notes,
+        matches.match_number,
+        matches.map_name,
+        teams.name AS team_name
+      FROM results
+      JOIN matches ON matches.id = results.match_id
+      JOIN teams ON teams.id = results.team_id
+      WHERE matches.tournament_id = ?
+      ORDER BY
+        matches.match_number ASC,
+        results.points DESC,
+        results.kills DESC,
+        results.position ASC,
+        teams.name ASC
+    `,
+    [Number(tournamentId)]
+  );
+
+  return rows;
+}
 async function getAdminMatches() {
   const [rows] = await pool.query(
     `
@@ -332,7 +481,7 @@ async function getMatchAssignments(matchId) {
 
     const [assignedTeams] = await connection.query(
       `
-        SELECT teams.id, teams.name
+        SELECT teams.id, teams.name, teams.logo_url
         FROM match_teams
         JOIN teams ON teams.id = match_teams.team_id
         WHERE match_teams.match_id = ?
@@ -343,19 +492,36 @@ async function getMatchAssignments(matchId) {
 
     const [availableTeams] = await connection.query(
       `
-        SELECT teams.id, teams.name
+        SELECT teams.id, teams.name, teams.logo_url
         FROM tournament_teams
         JOIN teams ON teams.id = tournament_teams.team_id
         WHERE tournament_teams.tournament_id = ?
+          AND COALESCE(tournament_teams.disqualified, 0) = 0
         ORDER BY teams.name ASC
       `,
       [match.tournament_id]
     );
 
+    const allTeamIds = [...new Set([
+      ...assignedTeams.map((team) => Number(team.id)),
+      ...availableTeams.map((team) => Number(team.id))
+    ])];
+    const [playerRows] = allTeamIds.length
+      ? await connection.query(
+        `
+          SELECT id, team_id, player_name, player_uid, logo_url
+          FROM players
+          WHERE team_id IN (?)
+          ORDER BY team_id ASC, id ASC
+        `,
+        [allTeamIds]
+      )
+      : [[]];
+
     return {
       match,
-      assignedTeams,
-      availableTeams
+      assignedTeams: attachPlayersToTeams(assignedTeams, playerRows),
+      availableTeams: attachPlayersToTeams(availableTeams, playerRows)
     };
   } finally {
     connection.release();
@@ -373,7 +539,7 @@ async function assignMatchTeams(matchId, teamIds) {
     }
 
     const [eligibleRows] = await connection.query(
-      "SELECT team_id FROM tournament_teams WHERE tournament_id = ?",
+      "SELECT team_id FROM tournament_teams WHERE tournament_id = ? AND COALESCE(disqualified, 0) = 0",
       [match.tournament_id]
     );
 
@@ -425,6 +591,7 @@ async function listAdminResults() {
         results.position,
         results.kills,
         results.points,
+        results.report_notes,
         matches.tournament_id,
         matches.match_number,
         matches.map_name,
@@ -441,12 +608,32 @@ async function listAdminResults() {
   return rows;
 }
 
+async function getAdminResult(resultId) {
+  const connection = await pool.getConnection();
+
+  try {
+    const result = await loadResult(connection, Number(resultId));
+
+    if (!result) {
+      throw new HttpError(404, "Result not found");
+    }
+
+    return {
+      ...result,
+      player_stats: await loadResultPlayerStats(connection, Number(resultId))
+    };
+  } finally {
+    connection.release();
+  }
+}
+
 async function submitResult(payload) {
   const matchId = toPositiveNumber(payload.match_id, "Match ID");
   const teamId = toPositiveNumber(payload.team_id, "Team ID");
   const placement = toPositiveNumber(payload.position, "Placement");
   const kills = toNonNegativeNumber(payload.kills, "Kills");
   const requestedTournamentId = payload.tournament_id ? Number(payload.tournament_id) : null;
+  const reportNotes = String(payload.report_notes || "").trim() || null;
 
   return withTransaction(async (connection) => {
     const match = await loadMatch(connection, matchId);
@@ -460,22 +647,32 @@ async function submitResult(payload) {
     }
 
     await validateTeamForMatch(connection, { match, teamId });
+    const teamPlayers = await loadPlayersByTeam(connection, teamId);
+    const playerStats = normalizePlayerStats(payload.player_stats, teamPlayers, kills);
 
-    const placementPointsMap = await getPlacementPointsMap(connection);
+    const placementPointsMap = await getPlacementPointsMap(connection, Number(match.tournament_id));
     const totalPoints = calculateMatchPoints({ placement, kills }, placementPointsMap);
 
-    await connection.query(
+    const [result] = await connection.query(
       `
-        INSERT INTO results (match_id, team_id, position, kills, points)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO results (match_id, team_id, position, kills, points, report_notes)
+        VALUES (?, ?, ?, ?, ?, ?)
       `,
-      [matchId, teamId, placement, kills, totalPoints]
+      [matchId, teamId, placement, kills, totalPoints, reportNotes]
     );
+
+    await replaceResultPlayerStats(connection, {
+      resultId: result.insertId,
+      matchId,
+      teamId,
+      playerStats
+    });
 
     await syncCompetitionState(connection);
     const refreshedMatch = await loadMatch(connection, matchId);
 
     return {
+      result_id: result.insertId,
       match_id: matchId,
       tournament_id: Number(match.tournament_id),
       team_id: teamId,
@@ -507,6 +704,9 @@ async function updateResult(resultId, payload) {
     const nextKills = Object.prototype.hasOwnProperty.call(payload, "kills")
       ? toNonNegativeNumber(payload.kills, "Kills")
       : Number(existingResult.kills);
+    const nextReportNotes = Object.prototype.hasOwnProperty.call(payload, "report_notes")
+      ? (String(payload.report_notes || "").trim() || null)
+      : existingResult.report_notes;
 
     const match = await loadMatch(connection, nextMatchId);
 
@@ -519,22 +719,40 @@ async function updateResult(resultId, payload) {
       teamId: nextTeamId,
       resultIdToIgnore: resultIdNumber
     });
+    const teamPlayers = await loadPlayersByTeam(connection, nextTeamId);
+    const shouldUpdatePlayerStats = Object.prototype.hasOwnProperty.call(payload, "player_stats")
+      || nextTeamId !== Number(existingResult.team_id)
+      || nextMatchId !== Number(existingResult.match_id)
+      || nextKills !== Number(existingResult.kills);
+    const nextPlayerStats = shouldUpdatePlayerStats
+      ? normalizePlayerStats(payload.player_stats || [], teamPlayers, nextKills)
+      : await loadResultPlayerStats(connection, resultIdNumber);
 
-    const placementPointsMap = await getPlacementPointsMap(connection);
+    const placementPointsMap = await getPlacementPointsMap(connection, Number(match.tournament_id));
     const totalPoints = calculateMatchPoints({ placement: nextPlacement, kills: nextKills }, placementPointsMap);
 
     await connection.query(
       `
         UPDATE results
-        SET match_id = ?, team_id = ?, position = ?, kills = ?, points = ?
+        SET match_id = ?, team_id = ?, position = ?, kills = ?, points = ?, report_notes = ?
         WHERE id = ?
       `,
-      [nextMatchId, nextTeamId, nextPlacement, nextKills, totalPoints, resultIdNumber]
+      [nextMatchId, nextTeamId, nextPlacement, nextKills, totalPoints, nextReportNotes, resultIdNumber]
     );
+
+    await replaceResultPlayerStats(connection, {
+      resultId: resultIdNumber,
+      matchId: nextMatchId,
+      teamId: nextTeamId,
+      playerStats: nextPlayerStats
+    });
 
     await syncCompetitionState(connection);
 
-    return loadResult(connection, resultIdNumber);
+    return {
+      ...(await loadResult(connection, resultIdNumber)),
+      player_stats: await loadResultPlayerStats(connection, resultIdNumber)
+    };
   });
 }
 
@@ -548,6 +766,7 @@ async function deleteResult(resultId) {
       throw new HttpError(404, "Result not found");
     }
 
+    await connection.query("DELETE FROM player_match_stats WHERE result_id = ?", [resultIdNumber]);
     await connection.query("DELETE FROM results WHERE id = ?", [resultIdNumber]);
     await syncCompetitionState(connection);
 
@@ -558,12 +777,14 @@ async function deleteResult(resultId) {
 module.exports = {
   createMatch,
   getMatchesByTournament,
+  getMatchResultsByTournament,
   getAdminMatches,
   updateMatch,
   deleteMatch,
   getMatchAssignments,
   assignMatchTeams,
   listAdminResults,
+  getAdminResult,
   submitResult,
   updateResult,
   deleteResult

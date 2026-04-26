@@ -5,10 +5,15 @@ import { useAuth } from "../../hooks/useAuth";
 import Panel from "../ui/Panel";
 import Badge from "../ui/Badge";
 
+function normalizeNumber(value) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
 export default function LeaderboardBoard({ compact = false }) {
   const { token } = useAuth();
   const [tournaments, setTournaments] = useState([]);
-  const [selectedTournamentId, setSelectedTournamentId] = useState("");
+  const [selectedScope, setSelectedScope] = useState("global");
   const [leaderboard, setLeaderboard] = useState([]);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22,36 +27,25 @@ export default function LeaderboardBoard({ compact = false }) {
   }, [token]);
 
   useEffect(() => {
-    if (!selectedTournamentId) {
-      return;
-    }
-
-    loadLeaderboard(selectedTournamentId);
-  }, [selectedTournamentId, token]);
+    loadLeaderboard(selectedScope);
+  }, [selectedScope, token]);
 
   async function loadTournaments() {
-    setLoading(true);
-    setError("");
-
     try {
       const data = await apiRequest("/tournaments", { token });
       setTournaments(data || []);
-
-      if (data?.length) {
-        setSelectedTournamentId(String(data[0].id));
-      }
     } catch (requestError) {
       setError(requestError.message);
-      setLoading(false);
     }
   }
 
-  async function loadLeaderboard(tournamentId) {
+  async function loadLeaderboard(scope) {
     setLoading(true);
     setError("");
 
     try {
-      const data = await apiRequest(`/leaderboard/${tournamentId}`, { token });
+      const endpoint = scope === "global" ? "/leaderboard" : `/leaderboard/${scope}`;
+      const data = await apiRequest(endpoint, { token });
       setLeaderboard(data || []);
     } catch (requestError) {
       setError(requestError.message);
@@ -65,8 +59,8 @@ export default function LeaderboardBoard({ compact = false }) {
       {!compact ? (
         <div className="section-copy">
           <span className="eyebrow">POWER RANKINGS</span>
-          <h2>Animated leaderboard</h2>
-          <p>Switch tournaments and watch the live standings pulse with every reported result.</p>
+          <h2>Scoped leaderboard</h2>
+          <p>Switch between global and tournament standings to compare team performance by scope.</p>
         </div>
       ) : null}
 
@@ -78,10 +72,11 @@ export default function LeaderboardBoard({ compact = false }) {
         <div className="row-between wrap-gap">
           <div>
             <h3>Leaderboard feed</h3>
-            <p>Placement points from the admin-configured scoring table plus one point per kill.</p>
+            <p>Review global totals or drill into one tournament leaderboard.</p>
           </div>
 
-          <select className="dashboard-select" value={selectedTournamentId} onChange={(event) => setSelectedTournamentId(event.target.value)}>
+          <select className="dashboard-select" value={selectedScope} onChange={(event) => setSelectedScope(event.target.value)}>
+            <option value="global">Global Leaderboard</option>
             {tournaments.map((tournament) => (
               <option key={tournament.id} value={tournament.id}>{tournament.name}</option>
             ))}
@@ -96,6 +91,7 @@ export default function LeaderboardBoard({ compact = false }) {
             <div className="leaderboard-table__head">
               <span>Rank</span>
               <span>Team</span>
+              <span>Matches</span>
               <span>Kills</span>
               <span>Points</span>
             </div>
@@ -106,8 +102,9 @@ export default function LeaderboardBoard({ compact = false }) {
                   <Badge tone={index === 0 ? "success" : index === 1 ? "warning" : "neutral"}>#{index + 1}</Badge>
                 </span>
                 <strong>{team.name}</strong>
-                <span>{team.kills}</span>
-                <span>{team.points}</span>
+                <span>{normalizeNumber(team.matches_played)}</span>
+                <span>{normalizeNumber(team.kills ?? team.total_kills)}</span>
+                <span>{normalizeNumber(team.points ?? team.total_points)}</span>
               </motion.div>
             )) : <div className="empty-state">No results submitted yet.</div>}
           </div>

@@ -40,6 +40,14 @@ const userCards = [
     to: "/leaderboard",
     cta: "Open leaderboard",
     iconName: "leaderboard"
+  },
+  {
+    title: "Stats Center",
+    description: "Review team rankings, top fraggers, and player killboards.",
+    eyebrow: "Player Tool",
+    to: "/stats",
+    cta: "Open stats",
+    iconName: "stats"
   }
 ];
 

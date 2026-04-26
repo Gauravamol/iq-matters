@@ -1,102 +1,35 @@
-﻿const express = require("express");
+const express = require("express");
 const { authenticate, requireAdmin } = require("../middleware/auth");
 const { asyncHandler, HttpError } = require("../utils/http");
-const { pool } = require("../config/db");
-const { getPlacementPointsMap, calculateMatchPoints } = require("../services/scoringService");
 const {
   createMatch,
   getMatchesByTournament,
+  getMatchResultsByTournament,
   submitResult
 } = require("../services/matchService");
 
 const router = express.Router();
 
-function toPositiveNumber(value, fieldName) {
-  const number = Number(value);
-
-  if (!Number.isFinite(number) || number <= 0) {
-    throw new HttpError(400, `${fieldName} must be a positive number`);
-  }
-
-  return number;
-}
-
-function toNonNegativeNumber(value, fieldName) {
-  const number = Number(value);
-
-  if (!Number.isFinite(number) || number < 0) {
-    throw new HttpError(400, `${fieldName} must be a non-negative number`);
-  }
-
-  return number;
-}
-
 async function submitStandaloneMatchResult(payload) {
-  const tournamentId = toPositiveNumber(payload.tournament_id, "Tournament ID");
-  const teamId = toPositiveNumber(payload.team_id, "Team ID");
-  const placement = toPositiveNumber(payload.placement, "Placement");
-  const kills = toNonNegativeNumber(payload.kills, "Kills");
+  const matchId = Number(payload.match_id);
 
-  const connection = await pool.getConnection();
-
-  try {
-    await connection.beginTransaction();
-
-    const [tournamentRows] = await connection.query(
-      "SELECT id FROM tournaments WHERE id = ? LIMIT 1",
-      [tournamentId]
-    );
-
-    if (!tournamentRows.length) {
-      throw new HttpError(404, "Tournament not found");
-    }
-
-    const [teamRows] = await connection.query(
-      "SELECT id FROM teams WHERE id = ? LIMIT 1",
-      [teamId]
-    );
-
-    if (!teamRows.length) {
-      throw new HttpError(404, "Team not found");
-    }
-
-    const placementPointsMap = await getPlacementPointsMap(connection);
-    const totalPoints = calculateMatchPoints({ placement, kills }, placementPointsMap);
-
-    await connection.query(
-      `
-        INSERT INTO match_results (tournament_id, team_id, placement, kills, points)
-        VALUES (?, ?, ?, ?, ?)
-      `,
-      [tournamentId, teamId, placement, kills, totalPoints]
-    );
-
-    await connection.query(
-      `
-        UPDATE teams
-        SET
-          total_points = COALESCE(total_points, 0) + ?,
-          total_kills = COALESCE(total_kills, 0) + ?,
-          matches_played = COALESCE(matches_played, 0) + 1
-        WHERE id = ?
-      `,
-      [totalPoints, kills, teamId]
-    );
-
-    await connection.commit();
-
-    return {
-      tournament_id: tournamentId,
-      team_id: teamId,
-      total_points: totalPoints
-    };
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
+  if (!Number.isFinite(matchId) || matchId <= 0) {
+    throw new HttpError(400, "match_id is required for submitting a match result");
   }
+
+  return submitResult({
+    match_id: matchId,
+    team_id: payload.team_id,
+    position: payload.position ?? payload.placement,
+    kills: payload.kills,
+    tournament_id: payload.tournament_id
+  });
 }
+
+router.get("/matches/:tournament_id/results", asyncHandler(async (req, res) => {
+  const results = await getMatchResultsByTournament(Number(req.params.tournament_id));
+  res.json(results);
+}));
 
 router.get("/matches/:tournament_id", asyncHandler(async (req, res) => {
   const matches = await getMatchesByTournament(Number(req.params.tournament_id));

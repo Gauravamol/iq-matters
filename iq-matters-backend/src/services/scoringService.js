@@ -9,7 +9,50 @@ const DEFAULT_POINTS = {
   8: 1
 };
 
-async function getPlacementPointsMap(connection) {
+function normalizePointsSystem(pointsSystem) {
+  if (!Array.isArray(pointsSystem) || !pointsSystem.length) {
+    return null;
+  }
+
+  const normalizedRules = pointsSystem
+    .map((rule) => ({
+      position: Number(rule?.position),
+      points: Number(rule?.points)
+    }))
+    .filter((rule) => Number.isFinite(rule.position) && rule.position > 0 && Number.isFinite(rule.points) && rule.points >= 0);
+
+  if (!normalizedRules.length) {
+    return null;
+  }
+
+  return normalizedRules.reduce((map, rule) => {
+    map[rule.position] = rule.points;
+    return map;
+  }, {});
+}
+
+async function getPlacementPointsMap(connection, tournamentId = null) {
+  if (tournamentId) {
+    const [tournamentRows] = await connection.query(
+      "SELECT points_system_json FROM tournaments WHERE id = ? LIMIT 1",
+      [Number(tournamentId)]
+    );
+    const rawPointsSystem = tournamentRows[0]?.points_system_json;
+
+    if (rawPointsSystem) {
+      try {
+        const parsedPointsSystem = JSON.parse(rawPointsSystem);
+        const normalizedPointsSystem = normalizePointsSystem(parsedPointsSystem);
+
+        if (normalizedPointsSystem) {
+          return normalizedPointsSystem;
+        }
+      } catch (error) {
+        // Fall back to the global points system when tournament-specific JSON is invalid.
+      }
+    }
+  }
+
   const [rows] = await connection.query(
     "SELECT position, points FROM points_system ORDER BY position ASC"
   );
@@ -18,10 +61,7 @@ async function getPlacementPointsMap(connection) {
     return DEFAULT_POINTS;
   }
 
-  return rows.reduce((map, row) => {
-    map[row.position] = Number(row.points || 0);
-    return map;
-  }, {});
+  return normalizePointsSystem(rows) || DEFAULT_POINTS;
 }
 
 function calculateMatchPoints({ placement, kills }, placementPointsMap) {

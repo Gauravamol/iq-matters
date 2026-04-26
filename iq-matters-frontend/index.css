@@ -29,15 +29,53 @@ a {
 }
 
 .brand-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: max-content;
   font-family: 'Orbitron', sans-serif;
-  font-size: 24px;
-  letter-spacing: 0.08em;
+  font-size: 21px;
+  letter-spacing: 0.04em;
+  font-weight: 800;
+}
+
+.brand-mark__logo,
+.topbar__brand-logo {
+  display: block;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 12px;
+  box-shadow: 0 0 22px rgba(75, 240, 177, 0.16);
+}
+
+.brand-mark__text {
+  white-space: nowrap;
+}
+
+.topbar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar__brand p {
+  margin: 2px 0 0;
+  color: rgba(237, 244, 255, 0.62);
+  font-size: 14px;
 }
 
 .topbar__links,
 .topbar__actions,
 .hero-actions,
 .button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.toolbar-row {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
@@ -83,9 +121,20 @@ a {
 }
 
 .page-frame {
+  flex: 1 0 auto;
+  width: min(100%, 1180px);
   padding: 24px;
-  max-width: 1180px;
   margin: 0 auto;
+}
+
+.route-loader {
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  color: rgba(237, 244, 255, 0.72);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .hero-card,
@@ -216,6 +265,12 @@ a {
   gap: 12px;
 }
 
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
 .form-input,
 select.form-input {
   width: 100%;
@@ -225,6 +280,63 @@ select.form-input {
   color: #edf4ff;
   padding: 14px 16px;
   font: inherit;
+}
+
+.managed-file-field {
+  display: grid;
+  gap: 10px;
+}
+
+.managed-file-field__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.managed-file-field__picker,
+.managed-file-field__link,
+.managed-file-field__file {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(75, 240, 177, 0.22);
+  background: rgba(75, 240, 177, 0.08);
+  color: #edf4ff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.managed-file-field__picker {
+  cursor: pointer;
+}
+
+.managed-file-field__link {
+  background: rgba(26, 168, 245, 0.08);
+  border-color: rgba(26, 168, 245, 0.24);
+}
+
+.managed-file-field__file {
+  width: fit-content;
+  min-width: 68px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.managed-file-field__input {
+  display: none;
+}
+
+.managed-file-field__preview {
+  width: 80px;
+  height: 80px;
+  border-radius: 18px;
+  object-fit: cover;
+  border: 1px solid rgba(75, 240, 177, 0.22);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .form-input::placeholder {
@@ -279,6 +391,20 @@ select.form-input {
   border-bottom: 1px solid rgba(237, 244, 255, 0.1);
 }
 
+.toolbar-select {
+  min-width: min(100%, 300px);
+  max-width: 360px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.table-subcopy {
+  font-size: 14px;
+  color: rgba(237, 244, 255, 0.62);
+}
+
 .tournament-card {
   min-height: 240px;
 }
@@ -287,6 +413,21 @@ select.form-input {
   .topbar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .site-footer__inner {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .site-footer__inner {
+    grid-template-columns: 1fr;
+    padding: 24px 20px 28px;
+  }
+
+  .site-footer__brand {
+    font-size: 24px;
   }
 }
 
@@ -411,8 +552,16 @@ select.form-input {
   gap: 14px;
 }
 
+.media-card p {
+  overflow-wrap: anywhere;
+}
+
 .media-preview {
+  display: grid;
+  place-items: center;
   overflow: hidden;
+  min-height: 180px;
+  aspect-ratio: 16 / 9;
   border-radius: 18px;
   border: 1px solid rgba(237, 244, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
@@ -424,6 +573,13 @@ select.form-input {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
+}
+
+.media-preview--editor {
+  background:
+    linear-gradient(180deg, rgba(18, 31, 52, 0.88), rgba(8, 15, 27, 0.92)),
+    radial-gradient(circle at top, rgba(75, 240, 177, 0.12), transparent 58%);
 }
 
 .media-card__footer {
@@ -436,6 +592,67 @@ select.form-input {
 
 .app-shell {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.site-footer {
+  margin-top: 28px;
+  border-top: 1px solid rgba(57, 217, 138, 0.18);
+  background: linear-gradient(180deg, rgba(4, 10, 18, 0.94), rgba(3, 8, 15, 0.98));
+}
+
+.site-footer__inner {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+  padding: 28px 24px 30px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.site-footer__section {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.site-footer__section--brand {
+  gap: 8px;
+}
+
+.site-footer__brand {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 28px;
+  color: #ffffff;
+  letter-spacing: 0.06em;
+}
+
+.site-footer__title {
+  margin: 0;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(237, 244, 255, 0.66);
+}
+
+.site-footer__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.site-footer__link {
+  color: rgba(237, 244, 255, 0.84);
+  transition: color 180ms ease, text-shadow 180ms ease;
+}
+
+.site-footer__link:hover {
+  color: #4bf0b1;
+  text-shadow: 0 0 14px rgba(75, 240, 177, 0.24);
 }
 
 .topbar__nav-link {
@@ -456,16 +673,13 @@ select.form-input {
 .nav-button {
   transition:
     transform 180ms ease,
-    box-shadow 180ms ease,
     background 180ms ease,
     border-color 180ms ease,
     color 180ms ease;
-  box-shadow: 0 10px 24px rgba(26, 168, 245, 0.16);
 }
 
 .nav-button:hover {
   background: linear-gradient(135deg, #4bf0b1, #2ea6ff);
-  box-shadow: 0 16px 28px rgba(46, 166, 255, 0.2);
 }
 
 .nav-button--ghost:hover {
@@ -700,6 +914,16 @@ select.form-input {
   gap: 12px;
 }
 
+.team-identity > span {
+  display: grid;
+  gap: 2px;
+}
+
+.team-identity__meta {
+  font-size: 14px;
+  color: rgba(237, 244, 255, 0.62);
+}
+
 .team-logo-badge {
   display: inline-flex;
   align-items: center;
@@ -711,6 +935,25 @@ select.form-input {
   border: 1px solid rgba(75, 240, 177, 0.22);
   font-weight: 700;
   color: #ffffff;
+}
+
+.team-logo-badge--file {
+  text-decoration: none;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.team-logo-image {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(75, 240, 177, 0.24);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.registration-player-card {
+  padding: 18px;
 }
 
 @media (max-width: 900px) {
@@ -820,3 +1063,4 @@ select.form-input {
     grid-template-columns: 1fr;
   }
 }
+

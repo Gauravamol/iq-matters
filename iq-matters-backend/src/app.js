@@ -9,18 +9,45 @@ const tournamentRoutes = require("./routes/tournamentRoutes");
 const matchRoutes = require("./routes/matchRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const mediaRoutes = require("./routes/mediaRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
 const externalRoutes = require("./routes/externalRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
+const statsRoutes = require("./routes/statsRoutes");
 
 function createExpressApp() {
   const app = express();
+  const corsOptions = env.corsOrigins.length
+    ? {
+        origin(origin, callback) {
+          if (!origin || env.corsOrigins.includes(origin)) {
+            callback(null, true);
+            return;
+          }
 
-  app.use(cors());
-  app.use(express.json());
+          const error = new Error("Origin not allowed by CORS");
+          error.status = 403;
+          callback(error);
+        }
+      }
+    : undefined;
+
+  if (env.trustProxy) {
+    app.set("trust proxy", 1);
+  }
+
+  app.use(cors(corsOptions));
+  app.use(express.json({ limit: "20mb" }));
+  app.use("/uploads", express.static(env.uploadRoot));
 
   app.get("/", (req, res) => {
     res.json({
       message: "IQ Matters API running"
+    });
+  });
+
+  app.get("/health", (req, res) => {
+    res.json({
+      status: "ok"
     });
   });
 
@@ -30,8 +57,10 @@ function createExpressApp() {
   app.use(matchRoutes);
   app.use(adminRoutes);
   app.use(mediaRoutes);
+  app.use(uploadRoutes);
   app.use(externalRoutes);
   app.use(settingsRoutes);
+  app.use(statsRoutes);
 
   app.use((err, req, res, next) => {
     const status = err.status || 500;
@@ -67,6 +96,7 @@ async function startServer() {
 }
 
 module.exports = {
+  createExpressApp,
   createApp,
   startServer
 };

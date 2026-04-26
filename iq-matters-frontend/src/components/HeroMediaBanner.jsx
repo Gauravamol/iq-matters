@@ -2,14 +2,16 @@ import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { apiRequest } from "../lib/api";
 import { usePlatform } from "../context/PlatformContext";
+import { isImageAssetUrl, isVideoAssetUrl } from "../lib/fileTypes";
+import defaultHeroImage from "../desk.bg.webp";
 
 const defaultHeroImages = {
-  home: "/media/hero-home.svg",
-  tournaments: "/media/hero-tournaments.svg",
-  matches: "/media/hero-matches.svg",
-  leaderboard: "/media/hero-leaderboard.svg",
-  dashboard: "/media/hero-dashboard.svg",
-  "team-dashboard": "/media/hero-team-dashboard.svg"
+  home: defaultHeroImage,
+  tournaments: defaultHeroImage,
+  matches: defaultHeroImage,
+  leaderboard: defaultHeroImage,
+  dashboard: defaultHeroImage,
+  "team-dashboard": defaultHeroImage
 };
 
 function HeroMediaBanner({ page, eyebrow, title, description, actions = null }) {
@@ -47,7 +49,9 @@ function HeroMediaBanner({ page, eyebrow, title, description, actions = null }) 
   }
 
   const mediaLabel = asset ? (asset.media_type === "video" ? "Managed video" : "Managed hero") : "Default hero image";
-  const imageSource = asset?.media_type === "image" ? asset.url : defaultHeroImages[page] || defaultHeroImages.dashboard;
+  const canRenderVideo = asset?.media_type === "video" && isVideoAssetUrl(asset?.url);
+  const canRenderImage = asset?.media_type === "image" && isImageAssetUrl(asset?.url);
+  const imageSource = canRenderImage ? asset.url : defaultHeroImages[page] || defaultHeroImages.dashboard;
 
   return (
     <motion.section
@@ -56,7 +60,7 @@ function HeroMediaBanner({ page, eyebrow, title, description, actions = null }) 
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.32, ease: "easeOut" }}
     >
-      {asset?.media_type === "video" ? (
+      {canRenderVideo ? (
         <video className="hero-banner__media" src={asset.url} autoPlay muted playsInline preload="metadata" />
       ) : (
         <img className="hero-banner__media" src={imageSource} alt={`${title} hero banner`} />

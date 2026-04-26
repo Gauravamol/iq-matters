@@ -1,4 +1,22 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+function normalizeApiBaseUrl(value) {
+  const normalizedValue = String(value || "").trim();
+
+  if (!normalizedValue) {
+    return "";
+  }
+
+  return normalizedValue.replace(/\/+$/, "");
+}
+
+export const API_BASE_URL = normalizeApiBaseUrl(
+  import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? "http://localhost:3000" : "")
+);
+
+function buildApiUrl(path) {
+  const normalizedPath = String(path || "").startsWith("/") ? path : `/${path}`;
+
+  return API_BASE_URL ? `${API_BASE_URL}${normalizedPath}` : normalizedPath;
+}
 
 function getErrorMessage(path, response, payload) {
   if (payload && typeof payload === "object" && payload.message) {
@@ -37,13 +55,13 @@ export async function apiRequest(path, options = {}) {
   let response;
 
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(buildApiUrl(path), {
       method,
       headers: requestHeaders,
       body: body !== undefined ? JSON.stringify(body) : undefined
     });
   } catch (error) {
-    throw new Error("Unable to connect to the server. Make sure the backend is running.");
+    throw new Error("Unable to connect to the server. Check that VITE_API_BASE_URL points to the deployed backend.");
   }
 
   const text = await response.text();

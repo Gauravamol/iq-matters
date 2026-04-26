@@ -5,6 +5,7 @@ import { useAuth } from "../../hooks/useAuth";
 const guestLinks = [
   { to: "/", label: "Home", end: true },
   { to: "/tournaments", label: "Tournaments" },
+  { to: "/stats", label: "Stats" },
   { to: "/leaderboard", label: "Leaderboard" },
   { to: "/matches", label: "Matches" }
 ];
@@ -25,7 +26,7 @@ export default function MainNav() {
   return (
     <header className="topbar">
       <div className="topbar__brand">
-        <span className="topbar__logo">IQ</span>
+        <img src="/logo.svg" alt="" className="topbar__brand-logo" width="42" height="42" />
         <div>
           <strong>IQ Matters</strong>
           <p>BGMI tournament command platform</p>

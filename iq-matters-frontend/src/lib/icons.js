@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  BarChart3,
   CalendarDays,
   ExternalLink,
   Flag,
@@ -25,6 +26,7 @@ export const iconMap = {
   matches: Gamepad2,
   teams: Users,
   leaderboard: Medal,
+  stats: BarChart3,
   admin: Shield,
   dashboard: LayoutDashboard,
   login: LogIn,

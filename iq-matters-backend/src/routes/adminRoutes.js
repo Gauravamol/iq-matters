@@ -13,6 +13,8 @@ const {
   listTournaments,
   createTournament,
   getTournamentRegistrations,
+  setTournamentRegistrationStatus,
+  removeTournamentRegistration,
   updateTournament,
   deleteTournament
 } = require("../services/tournamentService");
@@ -30,6 +32,7 @@ const {
   getMatchAssignments,
   assignMatchTeams,
   listAdminResults,
+  getAdminResult,
   submitResult,
   updateResult,
   deleteResult
@@ -41,6 +44,10 @@ const {
   updateLeaderboardSettings,
   getPlatformFeatures
 } = require("../services/settingsService");
+const {
+  listTournamentRegistrationRequests,
+  reviewTournamentRegistrationRequest
+} = require("../services/registrationRequestService");
 
 const router = express.Router();
 
@@ -104,6 +111,45 @@ router.post("/admin/tournaments", asyncHandler(async (req, res) => {
 router.get("/admin/tournaments/:id/registrations", asyncHandler(async (req, res) => {
   const registrations = await getTournamentRegistrations(Number(req.params.id));
   res.json(registrations);
+}));
+
+router.get("/admin/tournaments/:id/requests", asyncHandler(async (req, res) => {
+  const requests = await listTournamentRegistrationRequests(Number(req.params.id));
+  res.json(requests);
+}));
+
+router.patch("/admin/tournaments/:id/registrations/:teamId", asyncHandler(async (req, res) => {
+  const registration = await setTournamentRegistrationStatus(
+    Number(req.params.id),
+    Number(req.params.teamId),
+    req.body || {}
+  );
+
+  res.json({
+    message: "Tournament registration updated",
+    registration
+  });
+}));
+
+router.delete("/admin/tournaments/:id/registrations/:teamId", asyncHandler(async (req, res) => {
+  const registration = await removeTournamentRegistration(
+    Number(req.params.id),
+    Number(req.params.teamId)
+  );
+
+  res.json({
+    message: "Tournament registration removed",
+    registration
+  });
+}));
+
+router.patch("/admin/registration-requests/:id", asyncHandler(async (req, res) => {
+  const request = await reviewTournamentRegistrationRequest(Number(req.params.id), req.body || {});
+
+  res.json({
+    message: "Registration request reviewed",
+    request
+  });
 }));
 
 router.put("/admin/tournaments/:id", asyncHandler(async (req, res) => {
@@ -205,6 +251,11 @@ router.post("/admin/matches/:id/assignments", asyncHandler(async (req, res) => {
 router.get("/admin/results", asyncHandler(async (req, res) => {
   const results = await listAdminResults();
   res.json(results);
+}));
+
+router.get("/admin/results/:id", asyncHandler(async (req, res) => {
+  const result = await getAdminResult(Number(req.params.id));
+  res.json(result);
 }));
 
 router.post("/admin/results", asyncHandler(async (req, res) => {
