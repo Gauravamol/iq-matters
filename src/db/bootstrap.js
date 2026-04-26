@@ -137,7 +137,7 @@ async function bootstrapDatabase(pool) {
       `
     );
 
-    if (!(await hasColumn(connection, "matches", "scheduled_at"))) {
+    if (await hasTable(connection, "matches") && !(await hasColumn(connection, "matches", "scheduled_at"))) {
       await connection.query("ALTER TABLE matches ADD COLUMN scheduled_at DATETIME NULL AFTER map_name");
     }
 
