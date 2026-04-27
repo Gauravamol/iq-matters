@@ -179,17 +179,6 @@ async function hasTable(connection, tableName) {
   return rows.length > 0;
 }
 
-async function ensureBaseSchema(connection) {
-  for (const statement of baseTableStatements) {
-    await connection.query(statement);
-  }
-
-  await connection.query(`
-    INSERT IGNORE INTO points_system (position, points)
-    VALUES (1, 15), (2, 12), (3, 10), (4, 8), (5, 6), (6, 4), (7, 2), (8, 1)
-  `);
-}
-
 async function bootstrapDatabase(pool) {
   const connection = await pool.getConnection();
 
@@ -217,15 +206,6 @@ async function bootstrapDatabase(pool) {
       )
     `);
 
-    await connection.query(`
-      CREATE TABLE IF NOT EXISTS match_teams (
-        id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        match_id INT NOT NULL,
-        team_id INT NOT NULL,
-        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_match_team (match_id, team_id)
-      )
-    `);
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS player_match_stats (
@@ -300,7 +280,7 @@ async function bootstrapDatabase(pool) {
       `
     );
 
-    if ((await hasTable(connection, "matches")) && !(await hasColumn(connection, "matches", "scheduled_at"))) {
+    if (await hasTable(connection, "matches") && !(await hasColumn(connection, "matches", "scheduled_at"))) {
       await connection.query("ALTER TABLE matches ADD COLUMN scheduled_at DATETIME NULL AFTER map_name");
     }
 
